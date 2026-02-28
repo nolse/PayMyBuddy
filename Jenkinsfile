@@ -42,22 +42,28 @@ pipeline {
             }
         }
 
-        stage('Build') {
-            agent {
-                docker {
-                    image 'maven:3.8.6-amazoncorretto-17'
-                    args  '-v /root/.m2:/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
-            steps {
-                sh 'mvn package -DskipTests'
-                sh 'docker build -t ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG} .'
-                sh '''
-                    docker login -u $DOCKERHUB_AUTH_USR -p $DOCKERHUB_AUTH_PSW
-                    docker push ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG}
-                '''
-            }
+stage('Build') {
+    agent {
+        docker {
+            image 'maven:3.8.6-amazoncorretto-17'
+            args  '-v /root/.m2:/root/.m2'
         }
+    }
+    steps {
+        sh 'mvn package -DskipTests'
+    }
+}
+
+stage('Build & Push Docker Image') {
+    agent any
+    steps {
+        sh 'docker build -t ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG} .'
+        sh '''
+            docker login -u $DOCKERHUB_AUTH_USR -p $DOCKERHUB_AUTH_PSW
+            docker push ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG}
+        '''
+    }
+}
 
         stage('Deploy Staging') {
             when { branch 'main' }
