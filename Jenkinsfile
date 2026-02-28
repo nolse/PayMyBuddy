@@ -115,7 +115,14 @@ pipeline {
                 sh '''
                     apk --no-cache add curl
                     sleep 10
-                    curl -I http://${HOSTNAME_DEPLOY_STAGING} | grep -q "200"
+                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${HOSTNAME_DEPLOY_STAGING})
+                    echo "HTTP Status: $STATUS"
+                    if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ]; then
+                        echo "Application is UP!"
+                    else
+                        echo "Application is DOWN! Status: $STATUS"
+                        exit 1
+                    fi
                 '''
             }
         }
@@ -170,7 +177,14 @@ pipeline {
                 sh '''
                     apk --no-cache add curl
                     sleep 10
-                    curl -I http://${HOSTNAME_DEPLOY_PROD} | grep -q "200"
+                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${HOSTNAME_DEPLOY_PROD})
+                    echo "HTTP Status: $STATUS"
+                    if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ]; then
+                        echo "Application is UP!"
+                    else
+                        echo "Application is DOWN! Status: $STATUS"
+                        exit 1
+                    fi
                 '''
             }
         }
