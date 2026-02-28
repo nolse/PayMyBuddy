@@ -46,18 +46,22 @@ stage('Build') {
     agent {
         docker {
             image 'maven:3.8.6-amazoncorretto-17'
-            args '-v /root/.m2:/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock'
+            args '-v /root/.m2:/root/.m2'
         }
     }
     steps {
-        sh 'mvn -B clean package -DskipTests'
+        sh 'mvn package -DskipTests'
+    }
+}
 
-        sh "docker build -t ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG} ."
-
-        sh """
-            echo \$DOCKERHUB_AUTH_PSW | docker login -u \$DOCKERHUB_AUTH_USR --password-stdin
+stage('Build & Push Docker Image') {
+    agent any
+    steps {
+        sh 'docker build -t ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG} .'
+        sh '''
+            docker login -u $DOCKERHUB_AUTH_USR -p $DOCKERHUB_AUTH_PSW
             docker push ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG}
-        """
+        '''
     }
 }
 
@@ -172,18 +176,19 @@ stage('Build') {
 
     }
 
-    post {
-        success {
-            slackSend(
-                color: '#00FF00',
-                message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
-            )
-        }
-        failure {
-            slackSend(
-                color: '#FF0000',
-                message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
-            )
-        }
+post {
+    success {
+        slackSend(
+            channel: '#jenkins-eazytraining-alpha-alerte',
+            color: '#00FF00',
+            message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
+        )
+    }
+    failure {
+        slackSend(
+            channel: '#jenkins-eazytraining-alpha-alerte',
+            color: '#FF0000',
+            message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
+        )
     }
 }
