@@ -1,13 +1,13 @@
 pipeline {
     agent none
     environment {
-        DOCKERHUB_AUTH      = credentials('DOCKERHUB_AUTH')
-        ID_DOCKER           = "${DOCKERHUB_AUTH_USR}"
-        IMAGE_NAME          = "paymybuddy"
-        IMAGE_TAG           = "latest"
+        DOCKERHUB_AUTH          = credentials('DOCKERHUB_AUTH')
+        ID_DOCKER               = "${DOCKERHUB_AUTH_USR}"
+        IMAGE_NAME              = "paymybuddy"
+        IMAGE_TAG               = "latest"
         HOSTNAME_DEPLOY_STAGING = "13.220.129.1"
         HOSTNAME_DEPLOY_PROD    = "34.205.255.65"
-        SONAR_TOKEN         = credentials('jenkins-sonar')
+        SONAR_TOKEN             = credentials('jenkins-sonar')
     }
 
     stages {
@@ -42,29 +42,22 @@ pipeline {
             }
         }
 
-stage('Build') {
-    agent {
-        docker {
-            image 'maven:3.8.6-amazoncorretto-17'
-            args '-v /root/.m2:/root/.m2'
+        stage('Build') {
+            agent {
+                docker {
+                    image 'maven:3.8.6-amazoncorretto-17'
+                    args  '-v /root/.m2:/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
+            steps {
+                sh 'mvn package -DskipTests'
+                sh 'docker build -t ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG} .'
+                sh '''
+                    docker login -u $DOCKERHUB_AUTH_USR -p $DOCKERHUB_AUTH_PSW
+                    docker push ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG}
+                '''
+            }
         }
-    }
-    steps {
-        sh 'mvn package -DskipTests'
-    }
-}
-
-stage('Build & Push Docker Image') {
-    agent any
-    steps {
-        sh 'docker build -t ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG} .'
-        sh '''
-            docker login -u $DOCKERHUB_AUTH_USR -p $DOCKERHUB_AUTH_PSW
-            docker push ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG}
-        '''
-    }
-}
-
 
         stage('Deploy Staging') {
             when { branch 'main' }
@@ -90,7 +83,7 @@ stage('Build & Push Docker Image') {
                         command5="docker run -d --name mysql-db --network app-network \
                             -e MYSQL_ROOT_PASSWORD=password \
                             -e MYSQL_DATABASE=db_paymybuddy mysql:8.0"
-                        command6="sleep 60"
+                        command6="sleep 20"
                         command7="docker run -d -p 80:8080 --name webapp --network app-network \
                             -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/db_paymybuddy \
                             -e SPRING_DATASOURCE_USERNAME=root \
@@ -114,7 +107,7 @@ stage('Build & Push Docker Image') {
             steps {
                 sh '''
                     apk --no-cache add curl
-                    sleep 60
+                    sleep 10
                     curl -I http://${HOSTNAME_DEPLOY_STAGING} | grep -q "200"
                 '''
             }
@@ -144,7 +137,7 @@ stage('Build & Push Docker Image') {
                         command5="docker run -d --name mysql-db --network app-network \
                             -e MYSQL_ROOT_PASSWORD=password \
                             -e MYSQL_DATABASE=db_paymybuddy mysql:8.0"
-                        command6="sleep 60"
+                        command6="sleep 20"
                         command7="docker run -d -p 80:8080 --name webapp --network app-network \
                             -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/db_paymybuddy \
                             -e SPRING_DATASOURCE_USERNAME=root \
@@ -168,7 +161,7 @@ stage('Build & Push Docker Image') {
             steps {
                 sh '''
                     apk --no-cache add curl
-                    sleep 60
+                    sleep 10
                     curl -I http://${HOSTNAME_DEPLOY_PROD} | grep -q "200"
                 '''
             }
@@ -176,19 +169,20 @@ stage('Build & Push Docker Image') {
 
     }
 
-post {
-    success {
-        slackSend(
-            channel: '#jenkins-eazytraining-alpha-alerte',
-            color: '#00FF00',
-            message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
-        )
-    }
-    failure {
-        slackSend(
-            channel: '#jenkins-eazytraining-alpha-alerte',
-            color: '#FF0000',
-            message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
-        )
+    post {
+        success {
+            slackSend(
+                channel: '#jenkins-eazytraining-alpha-alerte',
+                color: '#00FF00',
+                message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
+            )
+        }
+        failure {
+            slackSend(
+                channel: '#jenkins-eazytraining-alpha-alerte',
+                color: '#FF0000',
+                message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
+            )
+        }
     }
 }
