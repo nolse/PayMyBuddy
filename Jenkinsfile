@@ -52,6 +52,13 @@ pipeline {
 
     stages {
 
+        stage('Clean Workspace') {
+            agent any
+            steps {
+                sh 'rm -rf target'
+            }
+        }
+
         stage('Tests') {
             agent {
                 docker {
@@ -60,7 +67,7 @@ pipeline {
                 }
             }
             steps {
-                sh 'mvn clean test'
+                sh 'mvn test'
             }
         }
 
