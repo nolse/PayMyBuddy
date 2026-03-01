@@ -60,8 +60,8 @@ pipeline {
         ID_DOCKER               = "${DOCKERHUB_AUTH_USR}"
         IMAGE_NAME              = "paymybuddy"
         IMAGE_TAG               = "latest"
-        HOSTNAME_DEPLOY_STAGING = "13.220.129.1"
-        HOSTNAME_DEPLOY_PROD    = "34.205.255.65"
+        HOSTNAME_DEPLOY_STAGING = "100.48.221.157"
+        HOSTNAME_DEPLOY_PROD    = "44.222.235.73"
         SONAR_TOKEN             = credentials('jenkins-sonar')
         MYSQL_ROOT_PASSWORD     = credentials('MYSQL_ROOT_PASSWORD')
     }
