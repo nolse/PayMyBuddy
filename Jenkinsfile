@@ -18,10 +18,12 @@ def deployToServer(String hostname, String sshCredential) {
             command3="docker rm -f paymybuddy mysql-db || echo 'containers do not exist'"
             command4="docker network rm app-network || true"
             command5="docker network create app-network"
-            command6="docker run -d --name mysql-db --network app-network \\
-                -e MYSQL_ROOT_PASSWORD=\$MYSQL_ROOT_PASSWORD \\
-                -e MYSQL_DATABASE=db_paymybuddy mysql:8.0"
-            command7="sleep 20"
+            command6="docker run -d --name mysql-db --network app-network \
+                -e MYSQL_ROOT_PASSWORD=\$MYSQL_ROOT_PASSWORD \
+                -e MYSQL_DATABASE=db_paymybuddy \
+                -v /home/ubuntu/sql:/docker-entrypoint-initdb.d \
+                   mysql:8.0"
+            command7="sleep 30"
             command8="docker run -d -p 80:8080 --name paymybuddy --network app-network \\
                 -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/db_paymybuddy \\
                 -e SPRING_DATASOURCE_USERNAME=root \\
