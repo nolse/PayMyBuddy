@@ -53,7 +53,7 @@ pipeline {
             agent {
                 docker {
                     image 'maven:3.8.6-amazoncorretto-17'
-                    args  '-v /root/.m2:/root/.m2'
+                    args  '-u root -v /root/.m2:/root/.m2'
                 }
             }
             steps {
@@ -65,7 +65,7 @@ pipeline {
             agent {
                 docker {
                     image 'maven:3.8.6-amazoncorretto-17'
-                    args  '-v /root/.m2:/root/.m2'
+                    args  '-u root -v /root/.m2:/root/.m2'
                 }
             }
             steps {
@@ -83,7 +83,7 @@ pipeline {
             agent {
                 docker {
                     image 'maven:3.8.6-amazoncorretto-17'
-                    args  '-v /root/.m2:/root/.m2'
+                    args  '-u root -v /root/.m2:/root/.m2'
                 }
             }
             steps {
@@ -95,7 +95,7 @@ pipeline {
             agent {
                 docker {
                     image 'docker:latest'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock'
+                    args '-u root -v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
             steps {
