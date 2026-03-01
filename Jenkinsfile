@@ -98,7 +98,7 @@ pipeline {
                 withSonarQubeEnv('sonarcloud') {
                     sh """
                         mvn sonar:sonar \
-                          -Dsonar.projectKey=spring-boot-app \
+                          -Dsonar.projectKey=paymybuddy \
                           -Dsonar.organization=alpha-jenkins \
                           -Dsonar.host.url=https://sonarcloud.io \
                           -Dsonar.login=${SONAR_TOKEN}
