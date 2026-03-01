@@ -193,26 +193,27 @@ pipeline {
 
     }
 
-post {
-    success {
-        slackSend(
-            channel: '#jenkins-eazytraining-alpha-alerte',
-            color: '#00FF00',
-            message: "✅ SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
-        )
-    }
-    failure {
-        slackSend(
-            channel: '#jenkins-eazytraining-alpha-alerte',
-            color: '#FF0000',
-            message: "❌ FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
-        )
-    }
-    unstable {
-        slackSend(
-            channel: '#jenkins-eazytraining-alpha-alerte',
-            color: '#FFA500',
-            message: "⚠️ UNSTABLE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
-        )
+    post {
+        success {
+            slackSend(
+                channel: '#jenkins-eazytraining-alpha-alerte',
+                color: '#00FF00',
+                message: "✅ SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
+            )
+        }
+        failure {
+            slackSend(
+                channel: '#jenkins-eazytraining-alpha-alerte',
+                color: '#FF0000',
+                message: "❌ FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
+            )
+        }
+        unstable {
+            slackSend(
+                channel: '#jenkins-eazytraining-alpha-alerte',
+                color: '#FFA500',
+                message: "⚠️ UNSTABLE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
+            )
+        }
     }
 }
