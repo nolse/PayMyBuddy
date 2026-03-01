@@ -1,44 +1,60 @@
 def deployToServer(String hostname, String sshCredential) {
-    sh 'apk --no-cache add openssh-client'
+    sh 'apk --no-cache add openssh-client curl'
+
     sshagent(credentials: [sshCredential]) {
         sh """
-            [ -d ~/.ssh ] || mkdir ~/.ssh && chmod 0700 ~/.ssh
-            ssh-keyscan -T 30 -t rsa ${hostname} >> ~/.ssh/known_hosts || true
+            set -e
+
+            mkdir -p ~/.ssh
+            chmod 700 ~/.ssh
+            ssh-keyscan -T 30 -t rsa ${hostname} >> ~/.ssh/known_hosts
 
             scp src/main/resources/database/create.sql ubuntu@${hostname}:/home/ubuntu/create.sql
 
-            ssh -t ubuntu@${hostname} "
-                if ! command -v docker &> /dev/null; then
+            ssh ubuntu@${hostname} "
+                set -e
+
+                if ! command -v docker >/dev/null 2>&1; then
                     curl -fsSL https://get.docker.com -o install-docker.sh
                     sudo sh install-docker.sh
                     sudo usermod -aG docker ubuntu
                 fi
+
+                echo \$DOCKERHUB_AUTH_PSW | docker login -u \$DOCKERHUB_AUTH_USR --password-stdin
+
+                docker pull \$ID_DOCKER/\$IMAGE_NAME:\$IMAGE_TAG
+
+                docker rm -f paymybuddy mysql-db || true
+                docker network rm app-network || true
+                docker volume create mysql-data || true
+                docker network create app-network
+
+                docker run -d --name mysql-db \\
+                    --network app-network \\
+                    -e MYSQL_ROOT_PASSWORD=\$MYSQL_ROOT_PASSWORD \\
+                    -v mysql-data:/var/lib/mysql \\
+                    -v /home/ubuntu/create.sql:/docker-entrypoint-initdb.d/create.sql \\
+                    mysql:8.0
+
+                echo 'Waiting for MySQL...'
+                until docker exec mysql-db mysqladmin ping -h localhost --silent; do
+                    sleep 5
+                done
+
+                docker run -d -p 80:8080 --name paymybuddy \\
+                    --network app-network \\
+                    -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/db_paymybuddy \\
+                    -e SPRING_DATASOURCE_USERNAME=root \\
+                    -e SPRING_DATASOURCE_PASSWORD=\$MYSQL_ROOT_PASSWORD \\
+                    \$ID_DOCKER/\$IMAGE_NAME:\$IMAGE_TAG
             "
-
-            command1="docker login -u \$DOCKERHUB_AUTH_USR -p \$DOCKERHUB_AUTH_PSW"
-            command2="docker pull \$ID_DOCKER/\$IMAGE_NAME:\$IMAGE_TAG"
-            command3="docker rm -f paymybuddy mysql-db || echo 'containers do not exist'"
-            command4="docker network rm app-network || true"
-            command5="docker network create app-network"
-            command6="docker run -d --name mysql-db --network app-network \\
-                -e MYSQL_ROOT_PASSWORD=\$MYSQL_ROOT_PASSWORD \\
-                -v /home/ubuntu/create.sql:/docker-entrypoint-initdb.d/create.sql \\
-                mysql:8.0"
-            command7="sleep 20"
-            command8="docker run -d -p 80:8080 --name paymybuddy --network app-network \\
-                -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/db_paymybuddy \\
-                -e SPRING_DATASOURCE_USERNAME=root \\
-                -e SPRING_DATASOURCE_PASSWORD=\$MYSQL_ROOT_PASSWORD \\
-                \$ID_DOCKER/\$IMAGE_NAME:\$IMAGE_TAG"
-
-            ssh -t ubuntu@${hostname} \\
-                "\$command1 && \$command2 && \$command3 && \$command4 && \$command5 && \$command6 && \$command7 && \$command8"
         """
     }
 }
 
 pipeline {
     agent none
+
     environment {
         DOCKERHUB_AUTH          = credentials('DOCKERHUB_AUTH')
         ID_DOCKER               = "${DOCKERHUB_AUTH_USR}"
@@ -55,7 +71,7 @@ pipeline {
         stage('Clean Workspace') {
             agent any
             steps {
-                sh 'rm -rf target'
+                cleanWs()
             }
         }
 
@@ -63,11 +79,11 @@ pipeline {
             agent {
                 docker {
                     image 'maven:3.8.6-amazoncorretto-17'
-                    args  '-v /root/.m2:/root/.m2'
+                    args '-v /root/.m2:/root/.m2'
                 }
             }
             steps {
-                sh 'mvn test'
+                sh 'mvn clean test'
             }
         }
 
@@ -75,17 +91,26 @@ pipeline {
             agent {
                 docker {
                     image 'maven:3.8.6-amazoncorretto-17'
-                    args  '-v /root/.m2:/root/.m2'
+                    args '-v /root/.m2:/root/.m2'
                 }
             }
             steps {
-                sh '''
+                sh """
                     mvn sonar:sonar \
-                        -Dsonar.projectKey=spring-boot-app \
-                        -Dsonar.organization=alpha-jenkins \
-                        -Dsonar.host.url=https://sonarcloud.io \
-                        -Dsonar.login=${SONAR_TOKEN}
-                '''
+                      -Dsonar.projectKey=spring-boot-app \
+                      -Dsonar.organization=alpha-jenkins \
+                      -Dsonar.host.url=https://sonarcloud.io \
+                      -Dsonar.login=${SONAR_TOKEN}
+                """
+            }
+        }
+
+        stage("Quality Gate") {
+            agent any
+            steps {
+                timeout(time: 2, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
             }
         }
 
@@ -93,7 +118,7 @@ pipeline {
             agent {
                 docker {
                     image 'maven:3.8.6-amazoncorretto-17'
-                    args  '-v /root/.m2:/root/.m2'
+                    args '-v /root/.m2:/root/.m2'
                 }
             }
             steps {
@@ -109,11 +134,11 @@ pipeline {
                 }
             }
             steps {
-                sh 'docker build -t ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG} .'
-                sh '''
-                    docker login -u $DOCKERHUB_AUTH_USR -p $DOCKERHUB_AUTH_PSW
+                sh """
+                    docker build -t ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG} .
+                    echo \$DOCKERHUB_AUTH_PSW | docker login -u \$DOCKERHUB_AUTH_USR --password-stdin
                     docker push ${ID_DOCKER}/${IMAGE_NAME}:${IMAGE_TAG}
-                '''
+                """
             }
         }
 
@@ -141,18 +166,13 @@ pipeline {
                 }
             }
             steps {
-                sh '''
+                sh """
                     apk --no-cache add curl
-                    sleep 10
-                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${HOSTNAME_DEPLOY_STAGING})
-                    echo "HTTP Status: $STATUS"
-                    if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ]; then
-                        echo "Application is UP!"
-                    else
-                        echo "Application is DOWN! Status: $STATUS"
-                        exit 1
-                    fi
-                '''
+                    sleep 15
+                    STATUS=\$(curl -s -o /dev/null -w "%{http_code}" http://${HOSTNAME_DEPLOY_STAGING})
+                    echo "HTTP Status: \$STATUS"
+                    [ "\$STATUS" = "200" ] || [ "\$STATUS" = "302" ]
+                """
             }
         }
 
@@ -180,21 +200,15 @@ pipeline {
                 }
             }
             steps {
-                sh '''
+                sh """
                     apk --no-cache add curl
-                    sleep 10
-                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${HOSTNAME_DEPLOY_PROD})
-                    echo "HTTP Status: $STATUS"
-                    if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ]; then
-                        echo "Application is UP!"
-                    else
-                        echo "Application is DOWN! Status: $STATUS"
-                        exit 1
-                    fi
-                '''
+                    sleep 15
+                    STATUS=\$(curl -s -o /dev/null -w "%{http_code}" http://${HOSTNAME_DEPLOY_PROD})
+                    echo "HTTP Status: \$STATUS"
+                    [ "\$STATUS" = "200" ] || [ "\$STATUS" = "302" ]
+                """
             }
         }
-
     }
 
     post {
@@ -202,21 +216,21 @@ pipeline {
             slackSend(
                 channel: '#jenkins-eazytraining-alpha-alerte',
                 color: '#00FF00',
-                message: "✅ SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
+                message: "SUCCESS: ${env.JOB_NAME} [${env.BUILD_NUMBER}] ${env.BUILD_URL}"
             )
         }
         failure {
             slackSend(
                 channel: '#jenkins-eazytraining-alpha-alerte',
                 color: '#FF0000',
-                message: "❌ FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
+                message: "FAILED: ${env.JOB_NAME} [${env.BUILD_NUMBER}] ${env.BUILD_URL}"
             )
         }
         unstable {
             slackSend(
                 channel: '#jenkins-eazytraining-alpha-alerte',
                 color: '#FFA500',
-                message: "⚠️ UNSTABLE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})"
+                message: "UNSTABLE: ${env.JOB_NAME} [${env.BUILD_NUMBER}] ${env.BUILD_URL}"
             )
         }
     }
