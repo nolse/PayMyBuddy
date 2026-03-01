@@ -83,7 +83,7 @@ pipeline {
                 }
             }
             steps {
-                sh 'mvn clean test'
+                sh 'mvn test'
             }
         }
 
@@ -95,17 +95,19 @@ pipeline {
                 }
             }
             steps {
-                sh """
-                    mvn sonar:sonar \
-                      -Dsonar.projectKey=spring-boot-app \
-                      -Dsonar.organization=alpha-jenkins \
-                      -Dsonar.host.url=https://sonarcloud.io \
-                      -Dsonar.login=${SONAR_TOKEN}
-                """
+                withSonarQubeEnv('sonarcloud') {
+                    sh """
+                        mvn sonar:sonar \
+                          -Dsonar.projectKey=spring-boot-app \
+                          -Dsonar.organization=alpha-jenkins \
+                          -Dsonar.host.url=https://sonarcloud.io \
+                          -Dsonar.login=${SONAR_TOKEN}
+                    """
+                }
             }
         }
 
-        stage("Quality Gate") {
+        stage('Quality Gate') {
             agent any
             steps {
                 timeout(time: 2, unit: 'MINUTES') {
@@ -216,21 +218,21 @@ pipeline {
             slackSend(
                 channel: '#jenkins-eazytraining-alpha-alerte',
                 color: '#00FF00',
-                message: "SUCCESS: ${env.JOB_NAME} [${env.BUILD_NUMBER}] ${env.BUILD_URL}"
+                message: "✅ SUCCESS: ${env.JOB_NAME} [${env.BUILD_NUMBER}] ${env.BUILD_URL}"
             )
         }
         failure {
             slackSend(
                 channel: '#jenkins-eazytraining-alpha-alerte',
                 color: '#FF0000',
-                message: "FAILED: ${env.JOB_NAME} [${env.BUILD_NUMBER}] ${env.BUILD_URL}"
+                message: "❌ FAILED: ${env.JOB_NAME} [${env.BUILD_NUMBER}] ${env.BUILD_URL}"
             )
         }
         unstable {
             slackSend(
                 channel: '#jenkins-eazytraining-alpha-alerte',
                 color: '#FFA500',
-                message: "UNSTABLE: ${env.JOB_NAME} [${env.BUILD_NUMBER}] ${env.BUILD_URL}"
+                message: "⚠️ UNSTABLE: ${env.JOB_NAME} [${env.BUILD_NUMBER}] ${env.BUILD_URL}"
             )
         }
     }
