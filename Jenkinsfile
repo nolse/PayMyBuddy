@@ -42,7 +42,7 @@ pipeline {
         IMAGE_NAME              = "paymybuddy"
         IMAGE_TAG               = "latest"
         HOSTNAME_DEPLOY_STAGING = "100.48.221.157"
-        HOSTNAME_DEPLOY_PROD    = "34.205.255.65"
+        HOSTNAME_DEPLOY_PROD    = "3.83.78.46"
         SONAR_TOKEN             = credentials('jenkins-sonar')
         MYSQL_ROOT_PASSWORD     = credentials('MYSQL_ROOT_PASSWORD')
     }
